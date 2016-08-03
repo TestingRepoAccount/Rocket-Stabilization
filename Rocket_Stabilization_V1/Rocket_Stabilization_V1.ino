@@ -2,9 +2,12 @@
  * Author: Jeremy Hall
  * Credits to Kris Winer at Sparkfun Electronics
  * for Mahony and Madgwick Filtering functions.
+ * Uses Adafruit BMP085 library for the BMP085 or BMP180
+ * (Will be replacing that in the future)
  */
 #include <Servo.h>
 #include<Wire.h>
+#include <Adafruit_BMP085.h>
 //#include <I2C.h>
 
 //#define OutputAccel
@@ -12,7 +15,8 @@
 //#define OutputMag
 //#define OutputQuat
 //#define OutputYawPitchRoll
-#define OutputCalibration
+#define OutputAltitude
+//#define OutputCalibration
 
 
 #define GyroMeasError PI * (40.0f / 180.0f)       // gyroscope measurement error in rads/s (shown as 3 deg/s)
@@ -42,6 +46,10 @@ int pitchoffset1 = 0; //servo 4
 Servo pitchserv, pitchserv1, rollserv, rollserv1;
 float pitchOutput, rollOutput;
 
+Adafruit_BMP085 bmp;
+int alt;
+int altoffset = 221;//offset
+
 void setup(){
   Wire.begin();
   setupSensors();
@@ -50,12 +58,18 @@ void setup(){
   pitchserv.attach(5);// Servo 2
   rollserv1.attach(6);// Servo 3
   pitchserv1.attach(9);// Servo 4
+  if (!bmp.begin()) {
+  Serial.println("Could not find a valid BMP085 sensor, check wiring!");
+  while (1) {}
+  }
+  
 }
 
 void loop(){
 //Get Sensor Updates
 readGyroAccel();
 readMag();
+alt = bmp.readAltitude() - altoffset;
 //Get Time Data then use a Mahony Filter
 Now = micros();
 deltat = ((Now - lastUpdate)/1000000.0f); // set integration time by time elapsed since last filter update
@@ -121,6 +135,10 @@ Serial.print("\t");
 Serial.println(roll);
 #endif
 
+#ifdef OutputAltitude
+Serial.println(alt);
+#endif
+
 #ifdef OutputCalibration
 Serial.print(pitch);
 Serial.print("\t");
@@ -132,8 +150,8 @@ Serial.println(rollOutput);
 #endif
 
 
-Serial.print(deltat);
-Serial.println("filter rate = "); Serial.println(1.0f/deltat, 1);
+//Serial.print(deltat);
+//Serial.println("filter rate = "); Serial.println(1.0f/deltat, 1);
 }
 
 void setupSensors() {
