@@ -1,3 +1,5 @@
+#include <SD.h>
+#include <SPI.h>
 /*
  * Author: Jeremy Hall
  * Credits to Kris Winer at Sparkfun Electronics
@@ -49,19 +51,18 @@ float pitchOutput, rollOutput;
 Adafruit_BMP085 bmp;
 int alt;
 int altoffset = 221;//offset
+const int chipSelect = 4;
 
 void setup(){
   Wire.begin();
-  setupSensors();
   Serial.begin(9600);
+  setupSensors();
+  initBMP180();
+  initSD();
   rollserv.attach(3);//Servo 1
   pitchserv.attach(5);// Servo 2
   rollserv1.attach(6);// Servo 3
   pitchserv1.attach(9);// Servo 4
-  if (!bmp.begin()) {
-  Serial.println("Could not find a valid BMP085 sensor, check wiring!");
-  while (1) {}
-  }
   
 }
 
@@ -70,6 +71,7 @@ void loop(){
 readGyroAccel();
 readMag();
 alt = bmp.readAltitude() - altoffset;
+
 //Get Time Data then use a Mahony Filter
 Now = micros();
 deltat = ((Now - lastUpdate)/1000000.0f); // set integration time by time elapsed since last filter update
@@ -86,6 +88,7 @@ roll  *= 180.0f / PI;
 // After Converting to Yaw, Pitch and Roll compute what is needed to control the rocket
 ComputePitch();
 ComputeRoll();
+dataLog();
 
 #ifdef OutputAccel
 Serial.print("\t");
@@ -200,7 +203,64 @@ pitchserv1.write(pitchopp + pitchoffset1);//Op. Servo
 
 }
 
+void initSD(){
+  Serial.print("Initializing SD card...");
 
+  if (!SD.begin(chipSelect)) {
+    Serial.println("SD initialization failed!");
+    return;
+  }
+  Serial.println("SD initialization done.");
+}
+
+void initBMP180(){
+  Serial.print("Initializing BMP180");
+    if (!bmp.begin()) {
+    Serial.println("BMP180 initialization failed!");
+    return;
+  }
+  Serial.println("BMP180 initialization done.");
+}
+
+void dataLog(){
+  File telemetry = SD.open("Telemetry.txt", FILE_WRITE);
+  if (telemetry){
+    telemetry.print(AcX);
+    telemetry.print("\t");
+    telemetry.print(AcY);
+    telemetry.print("\t");
+    telemetry.print(AcZ);
+    telemetry.print("\t");
+    telemetry.print(GyX);
+    telemetry.print("\t");
+    telemetry.print(GyY);
+    telemetry.print("\t");
+    telemetry.print(GyZ);
+    telemetry.print("\t");
+    telemetry.print(MgX);
+    telemetry.print("\t");
+    telemetry.print(MgY);
+    telemetry.print("\t");
+    telemetry.print(MgZ);
+    telemetry.print("\t");
+    telemetry.print(q[0]);
+    telemetry.print("\t");
+    telemetry.print(q[1]);
+    telemetry.print("\t");
+    telemetry.print(q[2]);
+    telemetry.print("\t");
+    telemetry.print(q[3]);
+    telemetry.print("\t");
+    telemetry.print(yaw);
+    telemetry.print("\t");
+    telemetry.print(pitch);
+    telemetry.print("\t");
+    telemetry.print(roll);
+    telemetry.print("\t");
+    telemetry.println(alt);
+    telemetry.close();
+  }
+}
 void readGyroAccel(){
   //Start Recieving Data
   Wire.beginTransmission(0x68);
