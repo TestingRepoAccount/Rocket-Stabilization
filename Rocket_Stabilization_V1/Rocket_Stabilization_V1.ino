@@ -2,7 +2,7 @@
 #include <SPI.h>
 /*
  * Author: Jeremy Hall
- * Credits to Kris Winer at Sparkfun Electronics
+ * Credit to Kris Winer at Sparkfun Electronics
  * for Mahony and Madgwick Filtering functions.
  * Uses Adafruit BMP085 library for the BMP085 or BMP180
  * (Will be replacing that in the future)
@@ -16,8 +16,8 @@
 //#define OutputGyro
 //#define OutputMag
 //#define OutputQuat
-//#define OutputYawPitchRoll
-#define OutputAltitude
+#define OutputYawPitchRoll
+//#define OutputAltitude
 //#define OutputCalibration
 
 
@@ -223,7 +223,8 @@ void initBMP180(){
 }
 
 void dataLog(){
-  File telemetry = SD.open("Telemetry.txt", FILE_WRITE);
+
+  File telemetry = SD.open("datalog.txt", FILE_WRITE);
   if (telemetry){
     telemetry.print(AcX);
     telemetry.print("\t");
@@ -260,6 +261,10 @@ void dataLog(){
     telemetry.println(alt);
     telemetry.close();
   }
+ else {
+    Serial.println("error opening datalog.txt");
+  }
+
 }
 void readGyroAccel(){
   //Start Recieving Data
@@ -286,9 +291,9 @@ void readGyroAccel(){
   AcX /= 16384.0f;
   AcY /= 16384.0f;
   AcZ /= 16384.0f;
-  GyX /= 131;
-  GyY /= 131;
-  GyZ /= 131;
+  GyX /= 131.0f;
+  GyY /= 131.0f;
+  GyZ /= 131.0f;
 }
 
 
@@ -300,9 +305,9 @@ void readMag(){
   MgX=Wire.read()<<8|Wire.read();//read registar 3 and 4  
   MgZ=Wire.read()<<8|Wire.read();//read registar 5 and 6
   MgY=Wire.read()<<8|Wire.read();//read registar 6 and 7
-  MgX *= .01;
-  MgY *= .01;
-  MgZ *= .01;
+  MgX *= .01f;
+  MgY *= .01f;
+  MgZ *= .01f;
 }
 
 void MahonyQuaternionUpdate(float ax, float ay, float az, float gx, float gy, float gz, float mx, float my, float mz)
