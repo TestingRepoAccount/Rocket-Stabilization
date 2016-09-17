@@ -30,8 +30,9 @@ float AcX, AcY, AcZ, Tmp, GyX, GyY, GyZ, MgX, MgY, MgZ; //Raw Data Consisting of
 float yaw, pitch, roll; //Yaw, Pitch, and Roll that is used in the Stabilization
 double pitchopp, pitchdiff, rollopp, rolldiff;// Mathmatical Variables used in determining Servo position.
 float pitchOutput, rollOutput; //Output from the adjustment Calculation
-bool aborten = false;//Abort Activated and Enabled
-
+int aborten = 0;//Abort Activation Status 0 == off 1 == On
+int iterpitch = 0;
+int iterenabled = 1;
 /* Servos are as follows:
 Servo 1: Pitch Servo 1
 Servo 2: Roll Servo 1
@@ -61,6 +62,7 @@ float Now = 0;           // used to calculate integration interval
 float deltat = 0.0f;        // integration interval for both filter schemes
 float q[4] = {1.0f, 0.0f, 0.0f, 0.0f};    // vector to hold quaternion
 float eInt[3] = {0.0f, 0.0f, 0.0f};       // vector to hold integral error for Mahony method
+unsigned long currentMillis;
 /*Variables are now setup and ready to go */
 
 /*Define the Debugging Outputs
@@ -72,15 +74,15 @@ OutputFiltQuat: Output Filtered Quaternion Data
 Output FiltYawPitchRoll: Output Filtered Yaw Pitch and Roll Data
 */
 //#define OutputRawAccel
-#define OutputRawGyro
+//#define OutputRawGyro
 //#define OutputRawMag
 //#define OutputFiltQuat
 //#define OutputFiltYawPitchRoll
 //#define OutputAltitude
-//#define OutputCalibration
+#define OutputCalibration
 
 //Enable Datalogging
-#define Datalog
+//#define Datalog
 
 //Define FIltering Paradigm
 //#define Madgwick
@@ -101,7 +103,7 @@ void setup()
 
 void loop()
 {
-
+currentMillis = millis();
 //Get Sensor Updates
   readGyroAccel();
   readMag();
@@ -125,11 +127,15 @@ void loop()
   pitch *= 180.0f / PI;
   yaw   *= 180.0f / PI;
   roll  *= 180.0f / PI;
-  
-// After Converting to Yaw, Pitch, and Roll compute what is needed to stabilize the vehicle
+  //Check if abort has been called
+if (aborten == 1){
+    abort();
+  }
+if(aborten == 0){
   ComputePitch();
-  ComputeRoll();
-  
+  ComputeRoll();  
+  }
+ 
   #ifdef Datalog //Datalogging
   dataLog();
   #endif
@@ -190,16 +196,18 @@ void loop()
 //Output Calibration is only needed for Calibration of the control function
 //Rarely ever needed
 
-/*#ifdef OutputCalibration
+#ifdef OutputCalibration
   Serial.print(pitch);
   Serial.print("\t");
   Serial.print(roll);
   Serial.print("\t");
   Serial.print(pitchOutput);
   Serial.print("\t");
+  Serial.print(currentMillis);
+  Serial.print("\t");
   Serial.println(rollOutput);
 #endif
-*/
+
 }
 //Lets setup these Sensors!
 void setupSensors()
@@ -268,8 +276,8 @@ void readGyroAccel()
   AcX -= 800.0f;//FYI I just found what seemed to be the best
   AcZ += 1449.0f;//and got me the most stable data with the noise centered around the 0
   GyX += 250.0f;//Your values may be different
-  GyY -= 30.0f;
-  GyZ += 40.0f;
+  GyY -= 32.0f;
+  GyZ += 39.0f;
   /*Division by the scaling factor as per the datasheet for the MPU6050 */
   AcX /= 16384.0f;
   AcY /= 16384.0f;
@@ -300,50 +308,50 @@ void getAlt()
 
 void ComputePitch()
 {
-  pitchOutput = map(roll, -30, 30, 70, 110);
+  pitchOutput = map(pitch, -30, 30, 70, 110);
 if (pitchOutput < 70 && pitchOutput > 50){
   pitchOutput = 70;
 }
 if (pitchOutput > 110 && pitchOutput < 130){
   pitchOutput = 110;
 }
-if(pitchOutput < 50 || pitchOutput > 130){
-  abort();
+
+if(pitch < -50 && currentMillis > 5000 || pitch > 50 && currentMillis > 5000){
+ aborten = 1;
 }
-if (aborten = false){
+
   /*calculate oppisite angle for the opp servo*/
   pitchdiff = 90 - pitchOutput;
   pitchopp = 90 + pitchdiff;
 //Write to the servos
   Servo2.write(pitchopp + Servo2offset);
   Servo4.write(pitchOutput + Servo4offset);
-  }
 }
 
 void ComputeRoll()
 {
-  rollOutput = map(roll, -30, 30, 70, 110);
+
+rollOutput = map(roll, -30, 30, 70, 110);
 if (rollOutput < 70 && rollOutput > 50){
   rollOutput = 70;
 }
 if (rollOutput > 110 && rollOutput < 130){
   rollOutput = 110;
 }
-if(rollOutput < 50 || rollOutput > 130){
-  abort();
+if(roll < -50 && currentMillis > 5000 || roll > 50 && currentMillis > 5000){
+ aborten = 1;
 }
-if (aborten = false){
+
+
   /*calculate oppisite angle for the opp servo*/
   rolldiff = 90 - rollOutput;
   rollopp = 90 + rolldiff;
 //Write to the Serovs
   Servo1.write(rollopp + Servo1offset);
   Servo3.write(rollOutput + Servo3offset);
-  }
 }
 
 void abort(){
-  aborten = true;
   Serial.print("ABORT!");
   Servo1.write(90 + Servo1offset);//Servo 1
   Servo2.write(90 + Servo2offset);//Servo 2
