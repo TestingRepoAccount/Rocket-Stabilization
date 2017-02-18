@@ -26,7 +26,8 @@ Customize them to your likings
 */
 const int MPU = 0x68; // I2C address of the MPU-6050
 const int Mag = 0x1E; //I2C address of the HMC5833L
-float AcX, AcY, AcZ, Tmp, GyX, GyY, GyZ, MgX, MgY, MgZ; //Raw Data Consisting of Accelerometer, Gyro and Magnetometer XYZ data readings
+int16_t AcX,AcY,AcZ,Tmp,GyX,GyY,GyZ,MgX,MgY,MgZ;//int16_t values
+float fAcX,fAcY,fAcZ,fGyX,fGyY,fGyZ,fMgX,fMgY,fMgZ;//float values
 float yaw, pitch, roll; //Yaw, Pitch, and Roll that is used in the Stabilization
 double pitchopp, pitchdiff, rollopp, rolldiff;// Mathmatical Variables used in determining Servo position.
 float pitchOutput, rollOutput; //Output from the adjustment Calculation
@@ -114,10 +115,10 @@ currentMillis = millis();
   deltat = ((Now - lastUpdate) / 1000000.0f); // set integration time by time elapsed since last filter update
 //Filter Enables
 #ifdef Mahony
-  MahonyQuaternionUpdate(AcX, AcY, AcZ, GyX * PI / 180.0f, GyY * PI / 180.0f, GyZ * PI / 180.0f, MgX, MgY, MgZ);
+  MahonyQuaternionUpdate(fAcX, fAcY, fAcZ, fGyX * PI / 180.0f, fGyY * PI / 180.0f, fGyZ * PI / 180.0f, fMgX, fMgY, fMgZ);
 #endif
 #ifdef Madgwick
-  MadgwickQuaternionUpdate(AcX, AcY, AcZ, GyX*PI/180.0f, GyY*PI/180.0f, GyZ*PI/180.0f, MgX, MgY, MgZ);
+  MadgwickQuaternionUpdate(fAcX, fAcY, fAcZ, fGyX*PI/180.0f, fGyY*PI/180.0f, fGyZ*PI/180.0f, fMgX, fMgY, fMgZ);
 #endif
   lastUpdate = micros();
 // Conversion to Yaw, Pitch, and Roll
@@ -203,9 +204,9 @@ if(aborten == 0){
   Serial.print("\t");
   Serial.print(pitchOutput);
   Serial.print("\t");
-  Serial.print(currentMillis);
+  Serial.print(rollOutput);
   Serial.print("\t");
-  Serial.println(rollOutput);
+  Serial.println(currentMillis);
 #endif
 
 }
@@ -227,6 +228,11 @@ void setupSensors()
   Wire.write(0x02);
   Wire.endTransmission(true);
 
+  Wire.beginTransmission(MPU); //Set Acceleration to +-16g
+  Wire.write(0x1C);//Register
+  Wire.write(0x18);//Afs = 3
+  Wire.endTransmission(); 
+  
   Wire.beginTransmission(Mag); //open communication with HMC5883
   Wire.write(0x02); //select mode register
   Wire.write(0x00); //continuous measurement mode
@@ -273,18 +279,24 @@ void readGyroAccel()
   /* This is offsetting your data, If you find your data to not be centered correctly
    *  find the offsets for your data and add or subract them here
    */
-  AcX -= 800.0f;//FYI I just found what seemed to be the best
-  AcZ += 1449.0f;//and got me the most stable data with the noise centered around the 0
-  GyX += 250.0f;//Your values may be different
-  GyY -= 32.0f;
-  GyZ += 39.0f;
+  //Change to Float
+  fAcX = AcX;
+  fAcY = AcY;
+  fAcZ = AcZ;
+  fGyX = GyX;
+  fGyY = GyY;
+  fGyZ = GyZ;
+  
+  fGyX += 250.0f; //Gyro Offset Values
+  fGyY -= 32.0f;
+  fGyZ += 39.0f;
   /*Division by the scaling factor as per the datasheet for the MPU6050 */
-  AcX /= 16384.0f;
-  AcY /= 16384.0f;
-  AcZ /= 16384.0f;
-  GyX /= 131;
-  GyY /= 131;
-  GyZ /= 131;
+  fAcX /= 2048.0f;
+  fAcY /= 2048.0f;
+  fAcZ /= 2048.0f;
+  fGyX /= 131;
+  fGyY /= 131;
+  fGyZ /= 131;
 }
 
 void readMag()
@@ -296,9 +308,12 @@ void readMag()
   MgX = Wire.read() << 8 | Wire.read(); //read registar 3 and 4
   MgZ = Wire.read() << 8 | Wire.read(); //read registar 5 and 6
   MgY = Wire.read() << 8 | Wire.read(); //read registar 6 and 7
-  MgX *= .01;
-  MgY *= .01;
-  MgZ *= .01;
+  fMgX = MgX;
+  fMgY = MgY;
+  fMgZ = MgZ;
+  fMgX *= .01;
+  fMgY *= .01;
+  fMgZ *= .01;
 }
 
 void getAlt()

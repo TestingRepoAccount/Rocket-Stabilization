@@ -5,11 +5,13 @@
 
 const int MPU=0x68;  // I2C address of the MPU-6050
 const int Mag = 0x1E;
-float AcX,AcY,AcZ,Tmp,GyX,GyY,GyZ,MgX,MgY,MgZ;
+int16_t AcX,AcY,AcZ,Tmp,GyX,GyY,GyZ,MgX,MgY,MgZ;
+float fAcX,fAcY,fAcZ,fGyX,fGyY,fGyZ,fMgX,fMgY,fMgZ;
+
 float lastUpdate = 0;    // used to calculate integration interval
 float Now = 0;           // used to calculate integration interval
-//#define OutputAccel
-#define OutputGyro
+#define OutputAccel
+//#define OutputGyro
 //#define OutputMag
 //#define OutputYawPitchRoll
 //#define OutputQuat
@@ -32,7 +34,7 @@ float eInt[3] = {0.0f, 0.0f, 0.0f};       // vector to hold integral error for M
 void setup(){
   Wire.begin();
   setupSensors();
-  Serial.begin(115200);
+  Serial.begin(9600);
 //  mag.begin();
  // Wire.beginTransmission(MPU);
 //  Wire.write(0x6B);  // PWR_MGMT_1 register
@@ -47,16 +49,16 @@ readMag();
   Now = micros();
   deltat = ((Now - lastUpdate)/1000000.0f); // set integration time by time elapsed since last filter update
 
-MahonyQuaternionUpdate(AcX, AcY, AcZ, GyX*PI/180.0f, GyY*PI/180.0f, GyZ*PI/180.0f, MgX, MgY, MgZ);
+MahonyQuaternionUpdate(fAcX, fAcY, fAcZ, fGyX*PI/180.0f, fGyY*PI/180.0f, fGyZ*PI/180.0f, MgX, MgY, MgZ);
 lastUpdate = micros();
 
 #ifdef OutputAccel
 Serial.print("\t");
-Serial.print(AcX);
+Serial.print(fAcX);
 Serial.print("\t");
-Serial.print(AcY);
+Serial.print(fAcY);
 Serial.print("\t");
-Serial.println(AcZ);
+Serial.println(fAcZ);
 #endif
 
 #ifdef OutputGyro
@@ -133,6 +135,11 @@ void setupSensors() {
   Wire.write(0x02); //select mode register
   Wire.write(0x00); //continuous measurement mode
   Wire.endTransmission();
+
+ Wire.beginTransmission(MPU); //Set Acceleration to +-16g
+  Wire.write(0x1C);//Register
+  Wire.write(0x18);//Afs = 3
+  Wire.endTransmission(); 
   
 }
 
@@ -150,18 +157,24 @@ void readGyroAccel(){
   GyY=Wire.read()<<8|Wire.read();  // 0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
   GyZ=Wire.read()<<8|Wire.read();  // 0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
 //Offset the input data
-  AcX -= 800.0f;//FYI I just found what seemed to be the best 
-  AcZ += 1449.0f;//and got me the most stable data with the noise centered around the 0
-  GyX += 250.0f;//Your values may be different
-  GyY -= 30.0f;
-  GyZ += 40.0f;
+  fAcX = AcX;
+  fAcY = AcY;
+  fAcZ = AcZ;
+  fGyX = GyX;
+  fGyY = GyY;
+  fGyZ = GyZ;
+  //fAcX -= 800.0f;//FYI I just found what seemed to be the best 
+  //fAcZ += 1449.0f;//and got me the most stable data with the noise centered around the 0
+  fGyX += 250.0f;//Your values may be different
+  fGyY -= 30.0f;
+  fGyZ += 40.0f;
 //divide it by scaling factor as per datasheet
-  AcX /= 16384.0f;
-  AcY /= 16384.0f;
-  AcZ /= 16384.0f;
-  GyX /= 131;
-  GyY /= 131;
-  GyZ /= 131;
+  fAcX /= 2048.0f;
+  fAcY /= 2048.0f;
+  fAcZ /= 2048.0f;
+  fGyX /= 131;
+  fGyY /= 131;
+  fGyZ /= 131;
 }
 
 
