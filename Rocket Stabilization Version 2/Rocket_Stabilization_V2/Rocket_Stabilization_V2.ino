@@ -23,6 +23,8 @@ You can easily change these pins in the setup function
 /* Variables for the Stabilization System
 Customize them to your likings
 */
+
+String Datain = "";
 const int MPU = 0x68; // I2C address of the MPU-6050
 const int Mag = 0x1E; //I2C address of the HMC5833L
 int16_t AcX,AcY,AcZ,Tmp,GyX,GyY,GyZ,MgX,MgY,MgZ;//int16_t values
@@ -43,7 +45,7 @@ int Servo1offset = 0; //servo 1
 int Servo2offset = 7;  //servo 2
 int Servo3offset = 0; //servo 3
 int Servo4offset = 7; //servo 4
-
+bool GNCOnline = false;
 Adafruit_BMP085 bmp;//Defines the BMP180
 int alt;//Current Altitude
 int altoffset = 221;//offset for the altimetry from sea level to your current location
@@ -93,9 +95,9 @@ float RollOffset = -5.2f;
 void setup(){
   Wire.begin();
   Serial.begin(9600);
-  //while (!Serial) {
- //   ; // wait for serial port to connect. Needed for native USB port only
- // }
+  while (!Serial) {
+    ; // wait for serial port to connect. Needed for native USB port only
+  }
 
   Serial.print("Initializing Sensors");
   initBMP180();
@@ -108,11 +110,11 @@ void setup(){
   Servo4.attach(11);
   pinMode(12, OUTPUT);
   // see if the card is present and can be initialized:
-  if (!SD.begin(chipSelect)) {
+ /* if (!SD.begin(chipSelect)) {
     Serial.println("Card failed, or not present");
     // don't do anything more:
     return;
-  }
+  }*/
   Serial.println("card initialized.");
   Serial.println("Initializing Servos");
 
@@ -121,6 +123,14 @@ void setup(){
 
 void loop()
 {
+
+while (Serial.available() > 0) {
+  Datain = Serial.readString();
+  Serial.println(Datain);
+  if (Datain == "GNCON"){
+    GNCOnline = true;
+  }
+}
 currentMillis = millis();
 //Get Sensor Updates
   readGyroAccel();
@@ -148,13 +158,17 @@ currentMillis = millis();
   pitch += PitchOffset;
   roll += RollOffset;
   //Check if abort has been called
+
+  
 if (aborten == 1){
     abort();
   }
-if(aborten == 0){
+
+if(aborten == 0 && GNCOnline == true){
   ComputePitch();
   ComputeRoll();  
-  }
+  digitalWrite(12, HIGH);
+  
 #ifdef Datalog
 File dataFile = SD.open("datalog.txt", FILE_WRITE);
 if (dataFile){
@@ -199,6 +213,7 @@ if (dataFile){
     Serial.println("error opening datalog.txt");
   }
 #endif
+}
 
 // The following Lines are for Debugging Functions
 #ifdef OutputRawAccel
@@ -265,7 +280,7 @@ if (dataFile){
   Serial.print("\t");
   Serial.print(rollOutput);
   Serial.print("\t");
-  Serial.println(currentMillis);
+  Serial.println(GNCOnline);
 #endif
 
 }
@@ -421,65 +436,6 @@ void abort(){
   Servo3.write(90 + Servo3offset);//Servo 3
   Servo4.write(90 + Servo4offset);//Servo 4
   digitalWrite(12, HIGH);
-}
-
-void dataLog(){
- /* if (myFile) {
-    Serial.print("Writing to test.txt...");
-    myFile.println("testing 1, 2, 3.");
-    // close the file:
-    myFile.close();
-    Serial.println("done.");
-  } else {
-    // if the file didn't open, print an error:
-    Serial.println("error opening test.txt");
-  }
-  telemetry = SD.open("RocketDataLog.txt", FILE_WRITE);
-  if (telemetry){
-    telemetry.print(AcX);
-    telemetry.print("\t");
-    telemetry.print(AcY);
-    telemetry.print("\t");
-    telemetry.print(AcZ);
-    telemetry.print("\t");
-    telemetry.print(GyX);
-    telemetry.print("\t");
-    telemetry.print(GyY);
-    telemetry.print("\t");
-    telemetry.print(GyZ);
-    telemetry.print("\t");
-    telemetry.print(MgX);
-    telemetry.print("\t");
-    telemetry.print(MgY);
-    telemetry.print("\t");
-    telemetry.print(MgZ);
-    telemetry.print("\t");
-    telemetry.print(q[0]);
-    telemetry.print("\t");
-    telemetry.print(q[1]);
-    telemetry.print("\t");
-    telemetry.print(q[2]);
-    telemetry.print("\t");
-    telemetry.print(q[3]);
-    telemetry.print("\t");
-    telemetry.print(yaw);
-    telemetry.print("\t");
-    telemetry.print(pitch);
-    telemetry.print("\t");
-    telemetry.print(roll);
-    telemetry.print("\t");
-    telemetry.print(alt);
-    telemetry.print("\t");
-    telemetry.print(currentMillis);
-    telemetry.print("\t");
-    telemetry.println(aborten);
-    telemetry.close();
-  }
- else {
-    Serial.println("error opening datalog.txt");
-  }*/
-  
-
 }
 
 void MahonyQuaternionUpdate(float ax, float ay, float az, float gx, float gy, float gz, float mx, float my, float mz)

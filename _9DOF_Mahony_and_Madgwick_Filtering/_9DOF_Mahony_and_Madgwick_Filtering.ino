@@ -1,4 +1,7 @@
 #include<Wire.h>
+#include <SPI.h>
+#include <SD.h>
+
 //#include <I2C.h>
 //#include <Adafruit_Sensor.h>
 //#include <Adafruit_HMC5883_U.h>
