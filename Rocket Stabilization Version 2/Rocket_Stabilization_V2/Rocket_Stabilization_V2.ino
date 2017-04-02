@@ -1,9 +1,11 @@
+
 /*
  * Author: Jeremy Hall
  * Credits to Kris Winer at Sparkfun Electronics
  * for Mahony and Madgwick Filtering functions.
  * Uses Adafruit BMP085 library for the BMP085 or BMP180
  * (Will be replacing that in the future)
+ * Credit to Caleb for buying me pizza as payment for some work
  */
 
 /*Quick Info:
@@ -23,11 +25,14 @@ You can easily change these pins in the setup function
 /* Variables for the Stabilization System
 Customize them to your likings
 */
-String data1,data2,data3,data4;
+String data1,data2,data3,data4,data5;
+int intdata1,intdata2,intdata3,intdata4;
 int DataPosition1 = 0;
 int DataPosition2 = 0; 
 int DataPosition3 = 0;
+int DataPosition4 = 0;
 String Datain = "";
+bool GNCOnline = true; //the GNC Status of the control algos
 const int MPU = 0x68; // I2C address of the MPU-6050
 const int Mag = 0x1E; //I2C address of the HMC5833L
 int16_t AcX,AcY,AcZ,Tmp,GyX,GyY,GyZ,MgX,MgY,MgZ;//int16_t values
@@ -35,7 +40,8 @@ float fAcX,fAcY,fAcZ,fGyX,fGyY,fGyZ,fMgX,fMgY,fMgZ;//float values
 float yaw, pitch, roll; //Yaw, Pitch, and Roll that is used in the Stabilization
 double pitchopp, pitchdiff, rollopp, rolldiff;// Mathmatical Variables used in determining Servo position.
 float pitchOutput, rollOutput; //Output from the adjustment Calculation
-int aborten = 0;//Abort Activation Status 0 == off 1 == On
+bool aborten = false;//Abort Activation Status
+int rollAngle, pitchAngle;
 //File telemetry;
 /* Servos are as follows:
 Servo 1: Pitch Servo 1
@@ -48,11 +54,14 @@ int Servo1offset = 0; //servo 1
 int Servo2offset = 7;  //servo 2
 int Servo3offset = 0; //servo 3
 int Servo4offset = 7; //servo 4
-bool GNCOnline = false;
+int Servo1pos = 0; //servo 1
+int Servo2pos = 0;  //servo 2
+int Servo3pos = 0; //servo 3
+int Servo4pos = 0; //servo 4
 Adafruit_BMP085 bmp;//Defines the BMP180
 int alt;//Current Altitude
 int altoffset = 221;//offset for the altimetry from sea level to your current location
-
+bool ServLock = false;
 const int chipSelect = 4; //Chip Select for the SD card logging
 /*Variables for the Mahony and Madgwick Filters*/
 #define GyroMeasError PI * (40.0f / 180.0f)       // gyroscope measurement error in rads/s (shown as 3 deg/s)
@@ -89,18 +98,20 @@ Output FiltYawPitchRoll: Output Filtered Yaw Pitch and Roll Data
 //#define Datalog
 
 //Define FIltering Paradigm
-//#define Madgwick
-#define Mahony
+bool MahonyEn = true;
+bool MadgwickEn = false;
 /* Calibration Values */
-float PitchOffset = 4.0f;
-float RollOffset = -5.2f;
+int yawOffset = 0;
+int pitchOffset = 4.0;
+int rollOffset = -5.2;
+
 
 void setup(){
   Wire.begin();
   Serial.begin(115200);
   Serial1.begin(115200);
   while (!Serial) {
-    ; // wait for serial port to connect. Needed for native USB port only
+     // wait for serial port to connect. Needed for native USB port only
   }
 
   Serial.print("Initializing Sensors");
@@ -127,67 +138,127 @@ void setup(){
 
 void loop()
 {
-
+  
 while (Serial1.available() > 0) {
-Datain = Serial1.readStringUntil('\n');
-Serial.println(Datain);
-char DataArray[Datain.length()];
-Datain.toCharArray(DataArray, 50);
-for (int i = 0; i < Datain.length(); i++){
-  if (DataArray[i] == ','){
-    if (DataPosition1 == 0){
-      DataPosition1 = i;
+Datain = Serial1.readStringUntil('\n'); // read serial data into a string
+Serial.println(Datain);//debugging not to worry
+char DataArray[Datain.length()];// make a array the length of the datain to make life simple
+Datain.toCharArray(DataArray, 50);// Make an array so we can search it
+for (int i = 0; i < Datain.length(); i++){// iterate through the length of it
+  if (DataArray[i] == ','){// search for a comma
+    if (DataPosition1 == 0){//if this is 0 then this is the first comma
+      DataPosition1 = i;//note the position of the comma
     }
-    else if (DataPosition1 != 0 && DataPosition2 == 0){
-      DataPosition2 = i;
+    else if (DataPosition1 != 0 && DataPosition2 == 0){// if its this then its the second comma
+      DataPosition2 = i;// put it as such
     }
-    else if (DataPosition1 != 0 && DataPosition2 != 0 && DataPosition3 == 0){
-      DataPosition3 = i;
+    else if (DataPosition1 != 0 && DataPosition2 != 0 && DataPosition3 == 0){//same as others but for third
+      DataPosition3 = i;//put it as such
     }
   }
-}
-data1 = Datain.substring(0,DataPosition1);
-data2 = Datain.substring(DataPosition1 + 1, DataPosition2);
-data3 = Datain.substring(DataPosition2 + 1, DataPosition3);
-data4 = Datain.substring(DataPosition3 + 1, Datain.length());
+}// now we are going to substring the main data string based on the position of the commas to get the variables
+data1 = Datain.substring(0,DataPosition1);//take the position and get the first variable
+data2 = Datain.substring(DataPosition1 + 1, DataPosition2);//get the second
+data3 = Datain.substring(DataPosition2 + 1, DataPosition3);// get the third
+data4 = Datain.substring(DataPosition3 + 1, DataPosition4);// get the fourth
+data5 = Datain.substring(DataPosition4 + 1, Datain.length());//get the fifth
 DataPosition1 = 0;
 DataPosition2 = 0;
 DataPosition3 = 0;
-
+DataPosition4 = 0;
 
   if (data1 == "GNCON"){
-    Serial.println("GNC is ON");
-    digitalWrite(12, HIGH);
+    Serial1.println("GNC is ON");
+    GNCOnline = true;
   }
     if (data1 == "GNCOFF"){
     Serial1.println("GNC is OFF");
+    GNCOnline = false;
   }
     if (data1 == "SERVOPOS"){
-    Serial1.println("Servo Position is set at:" + data2 + "," + data3 + "," + data4);
+    intdata1 = data2.toInt();
+    intdata2 = data3.toInt();
+    intdata3 = data4.toInt();
+    intdata4 = data5.toInt();
+    Serial1.print("Servo Position set to: ");
+    Serial1.print(intdata1);
+    Serial1.print(",");
+    Serial1.print(intdata2);
+    Serial1.print(",");
+    Serial1.print(intdata3);
+    Serial1.print(",");
+    Serial1.println(intdata4);
+    Servo1pos = intdata1;
+    Servo2pos = intdata2;
+    Servo3pos = intdata3;
+    Servo4pos = intdata4;
   }
     if (data1 == "SERVOFFSET"){
-    Serial1.println("Servo Offset is set at:" + data2 + "," + data3 + "," + data4);
+    intdata1 = data2.toInt();
+    intdata2 = data3.toInt();
+    intdata3 = data4.toInt();
+    intdata4 = data5.toInt();
+    Serial1.print("Servo Offset is set at: ");
+    Serial1.print(intdata1);
+    Serial1.print(",");
+    Serial1.print(intdata2);
+    Serial1.print(",");
+    Serial1.print(intdata3);
+    Serial1.print(",");
+    Serial1.println(intdata4);
+    Servo1offset = intdata1;
+    Servo2offset = intdata2;
+    Servo3offset = intdata3;
+    Servo4offset = intdata4;
   }
     if (data1 == "CAL"){
-    Serial1.println("Calibrating");
+    Serial1.println("Calibrating");//Still need to make a calibration routine
   }
     if (data1 == "YPROFFSET"){
-    Serial1.println("YPR Offset is set at:" + data2 + "," + data3 + "," + data4);
+    intdata1 = data2.toInt();
+    intdata2 = data3.toInt();
+    intdata3 = data4.toInt();
+    Serial1.print("Yaw Pitch and Roll Offset is set at: ");
+    Serial1.print(intdata1);
+    Serial1.print(",");
+    Serial1.print(intdata2);
+    Serial1.print(",");
+    Serial1.println(intdata3);
+    yawOffset = intdata1;
+    pitchOffset = intdata2;
+    rollOffset = intdata3;
   }
     if (data1 == "GNCANGLE"){
-    Serial1.println("GNC Angle is set at:" + data2 + "," + data3 + "," + data4);
+    intdata2 = data2.toInt();
+    intdata3 = data3.toInt();
+    Serial1.print("GNC Angle is set at: ");
+    Serial1.print(intdata2);
+    Serial1.print(",");
+    Serial1.println(intdata3);
+    pitchAngle = intdata2;
+    rollAngle = intdata3;
   }
     if (data1 == "YPROUT"){
-    Serial1.println("Yaw Pitch and Roll are:");// + yaw + "," + pitch + "," + roll);
+    Serial1.print("Yaw Pitch and Roll is at: ");
+    Serial1.print(yaw);
+    Serial1.print(",");
+    Serial1.print(pitch);
+    Serial1.print(",");
+    Serial1.println(roll);
   }
     if (data1 == "GNCOUT"){
-    Serial1.println("GNC is at:");
+    Serial1.print("GNC Correction is set at: ");
+    Serial1.print(pitchOutput);
+    Serial1.print(",");
+    Serial1.println(rollOutput);
   }
     if (data1 == "SERVLOCK"){
     Serial1.println("Servos are Locked");
+    ServLock = true;
   }
     if (data1 == "SERVUNLOCK"){
     Serial1.println("Servos are Unlocked");
+    ServLock = false;
   }
     if (data1 == "STAT"){
     Serial1.println("Launch Status is No Go!");
@@ -200,6 +271,7 @@ DataPosition3 = 0;
   }
     if (data1 == "NOGO"){
     Serial1.println("Abort!");
+    aborten = true;
   }
   data1 = "";
   data2 = "";
@@ -207,44 +279,32 @@ DataPosition3 = 0;
   data4 = "";
 }
 
+
+if (GNCOnline == true && aborten == false){
 currentMillis = millis();
 //Get Sensor Updates
   readGyroAccel();
   readMag();
   getAlt();
-
 //DeltaTime Data for the filtering
   Now = micros();
   deltat = ((Now - lastUpdate) / 1000000.0f); // set integration time by time elapsed since last filter update
 //Filter Enables
-#ifdef Mahony
-  MahonyQuaternionUpdate(fAcX, fAcY, fAcZ, fGyX * PI / 180.0f, fGyY * PI / 180.0f, fGyZ * PI / 180.0f, fMgX, fMgY, fMgZ);
-#endif
-#ifdef Madgwick
-  MadgwickQuaternionUpdate(fAcX, fAcY, fAcZ, fGyX*PI/180.0f, fGyY*PI/180.0f, fGyZ*PI/180.0f, fMgX, fMgY, fMgZ);
-#endif
-  lastUpdate = micros();
-// Conversion to Yaw, Pitch, and Roll
-  yaw   = atan2(2.0f * (q[1] * q[2] + q[0] * q[3]), q[0] * q[0] + q[1] * q[1] - q[2] * q[2] - q[3] * q[3]);   //convert to yaw, pitch and roll
-  pitch = -asin(2.0f * (q[1] * q[3] - q[0] * q[2]));
-  roll  = atan2(2.0f * (q[0] * q[1] + q[2] * q[3]), q[0] * q[0] - q[1] * q[1] - q[2] * q[2] + q[3] * q[3]);
-  pitch *= 180.0f / PI;
-  yaw   *= 180.0f / PI;
-  roll  *= 180.0f / PI;
-  pitch += PitchOffset;
-  roll += RollOffset;
-  //Check if abort has been called
-
-  
-if (aborten == 1){
-    abort();
+  if (MahonyEn == true){
+    MahonyUpdate();
   }
-
-if(aborten == 0 && GNCOnline == true){
+  if (MadgwickEn == true){
+    MadgwickUpdate();
+  }
   ComputePitch();
   ComputeRoll();  
-  digitalWrite(12, HIGH);
-  
+}
+
+if (aborten == true){
+  Abort();
+}
+
+
 #ifdef Datalog
 File dataFile = SD.open("datalog.txt", FILE_WRITE);
 if (dataFile){
@@ -289,7 +349,7 @@ if (dataFile){
     Serial.println("error opening datalog.txt");
   }
 #endif
-}
+
 
 // The following Lines are for Debugging Functions
 #ifdef OutputRawAccel
@@ -358,7 +418,6 @@ if (dataFile){
   Serial.print("\t");
   Serial.println(GNCOnline);
 #endif
-
 }
 //Lets setup these Sensors!
 void setupSensors()
@@ -473,13 +532,12 @@ if (pitchOutput > 110 && pitchOutput < 130){
 if(pitch < -50 && currentMillis > 8000 || pitch > 50 && currentMillis > 5000){
  aborten = 1;
 }
-
   /*calculate oppisite angle for the opp servo*/
   pitchdiff = 90 - pitchOutput;
   pitchopp = 90 + pitchdiff;
 //Write to the servos
-  Servo2.write(pitchopp + Servo2offset);
-  Servo4.write(pitchOutput + Servo4offset);
+  Servo2pos = pitchopp;
+  Servo4pos = pitchOutput;
 }
 
 void ComputeRoll()
@@ -495,17 +553,15 @@ if (rollOutput > 110 && rollOutput < 130){
 if(roll < -50 && currentMillis > 8000 || roll > 50 && currentMillis > 5000){
  aborten = 1;
 }
-
-
   /*calculate oppisite angle for the opp servo*/
   rolldiff = 90 - rollOutput;
   rollopp = 90 + rolldiff;
 //Write to the Serovs
-  Servo1.write(rollopp + Servo1offset);
-  Servo3.write(rollOutput + Servo3offset);
+  Servo1pos = rollopp;
+  Servo3pos = rollOutput;
 }
 
-void abort(){
+void Abort(){
   Serial.print("ABORT!");
   Servo1.write(90 + Servo1offset);//Servo 1
   Servo2.write(90 + Servo2offset);//Servo 2
@@ -513,7 +569,43 @@ void abort(){
   Servo4.write(90 + Servo4offset);//Servo 4
   digitalWrite(12, HIGH);
 }
+void writeServos(){
+  if(aborten == false && ServLock == false){
+  Servo1.write(Servo1pos + Servo1offset);//Servo 1
+  Servo2.write(Servo2pos + Servo2offset);//Servo 2
+  Servo3.write(Servo3pos + Servo3offset);//Servo 3
+  Servo4.write(Servo4pos + Servo4offset);//Servo 4
+  }
+}
+void MahonyUpdate(){
+  MahonyQuaternionUpdate(fAcX, fAcY, fAcZ, fGyX * PI / 180.0f, fGyY * PI / 180.0f, fGyZ * PI / 180.0f, fMgX, fMgY, fMgZ);
+  lastUpdate = micros();
+// Conversion to Yaw, Pitch, and Roll
+  yaw   = atan2(2.0f * (q[1] * q[2] + q[0] * q[3]), q[0] * q[0] + q[1] * q[1] - q[2] * q[2] - q[3] * q[3]);   //convert to yaw, pitch and roll
+  pitch = -asin(2.0f * (q[1] * q[3] - q[0] * q[2]));
+  roll  = atan2(2.0f * (q[0] * q[1] + q[2] * q[3]), q[0] * q[0] - q[1] * q[1] - q[2] * q[2] + q[3] * q[3]);
+  pitch *= 180.0f / PI;
+  yaw   *= 180.0f / PI;
+  roll  *= 180.0f / PI;
+  pitch += pitchOffset;
+  roll += rollOffset;
+  //Check if abort has been called
+}
 
+void MadgwickUpdate(){
+  MadgwickQuaternionUpdate(fAcX, fAcY, fAcZ, fGyX*PI/180.0f, fGyY*PI/180.0f, fGyZ*PI/180.0f, fMgX, fMgY, fMgZ);
+  lastUpdate = micros();
+// Conversion to Yaw, Pitch, and Roll
+  yaw   = atan2(2.0f * (q[1] * q[2] + q[0] * q[3]), q[0] * q[0] + q[1] * q[1] - q[2] * q[2] - q[3] * q[3]);   //convert to yaw, pitch and roll
+  pitch = -asin(2.0f * (q[1] * q[3] - q[0] * q[2]));
+  roll  = atan2(2.0f * (q[0] * q[1] + q[2] * q[3]), q[0] * q[0] - q[1] * q[1] - q[2] * q[2] + q[3] * q[3]);
+  pitch *= 180.0f / PI;
+  yaw   *= 180.0f / PI;
+  roll  *= 180.0f / PI;
+  pitch += pitchOffset;
+  roll += rollOffset;
+  //Check if abort has been called
+}
 void MahonyQuaternionUpdate(float ax, float ay, float az, float gx, float gy, float gz, float mx, float my, float mz)
 {
   float q1 = q[0], q2 = q[1], q3 = q[2], q4 = q[3];   // short name local variable for readability
