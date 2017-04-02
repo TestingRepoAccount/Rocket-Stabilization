@@ -18,7 +18,7 @@ const char *password = "BobThePineapple";
 
 
 WiFiUDP Udp;
-unsigned int localUdpPort = 4210;  // local port to listen on
+unsigned int localUdpPort = 4211;  // local port to listen on
 char incomingPacket[255];  // buffer for incoming packets
 char replyPacket[] = "Hi there! Got the message :-)";  // a reply string to send back
 char capturedData[255];
@@ -26,7 +26,6 @@ unsigned int ClientIP;
 int ClientPort;
 String Datain = "";
 char Dataout[255];
-ESP8266WebServer server(80);
 
 /* Just a little test message.  Go to http://192.168.4.1 in a web browser
  * connected to this access point to see it.
@@ -39,25 +38,16 @@ void setup() {
 	Serial.println();
 	Serial.print("Configuring access point...");
 	/* You can remove the password parameter if you want the AP to be open. */
-	WiFi.softAP(ssid, password);
+	WiFi.softAP(ssid);
 
 	IPAddress myIP = WiFi.softAPIP();
 	Serial.print("AP IP address: ");
   Serial.print(myIP);
   Udp.begin(localUdpPort);
-  
+  Serial.println("UDP Started");
 }
 
 void loop() {
-  
-  while (Serial.available() > 0) {
-  Datain = Serial.readString();
-  strcpy(Dataout, Datain.c_str());
-  Serial.println(Dataout);
-  Udp.beginPacket(ClientIP, ClientPort);
-  Udp.write(Dataout);
-  Udp.endPacket();
-}
   int packetSize = Udp.parsePacket();
   if (packetSize)
   {
@@ -67,10 +57,21 @@ void loop() {
     {
       incomingPacket[len] = 0;
     }
-    
+    Serial.println(incomingPacket);
     ClientIP = Udp.remoteIP();
     ClientPort = Udp.remotePort();
     std::copy(std::begin(incomingPacket), std::end(incomingPacket), std::begin(capturedData));
     Serial.println(capturedData);
   }
+  
+  while (Serial.available() > 0) {
+  Datain = Serial.readString();
+  strcpy(Dataout, Datain.c_str());
+  Serial.println(Dataout);
+  Udp.beginPacket(ClientIP, ClientPort);
+  Udp.write(Dataout);
+  Udp.endPacket();
+  Serial.println(WiFi.softAPgetStationNum());
+}
+
 }

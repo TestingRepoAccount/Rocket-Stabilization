@@ -8,35 +8,49 @@ WiFiUDP Udp;
 unsigned int localUdpPort = 4210;  // local port to listen on
 char incomingPacket[255];  // buffer for incoming packets
 char  replyPacket[] = "Hi there! Got the message :-)";  // a reply string to send back
-unsigned int ActualServerIP;
-int ServerPort = 55420;
-
+String ActualServerIP = "192.168.4.1";
+int ServerPort = 4211;
+char serialIn[255];  // buffer for incoming packets
+String Datain = "";
+char Dataout[255];
 void setup()
 {
   Serial.begin(115200);
   Serial.println();
 
-  Serial.printf("Connecting to %s ", ssid);
-  WiFi.begin(ssid, password);
+  Serial.println("Connecting");
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid);
   while (WiFi.status() != WL_CONNECTED)
   {
     delay(500);
-    Serial.print(".");
+    Serial.println(".");
   }
   Serial.println(" connected");
-  Udp.begin(localUdpPort);  ActualServerIP = WiFi.softAPIP();
-  Serial.println(ActualServerIP);
+  Udp.begin(4210);
+  //ActualServerIP = WiFi.softAPIP();
+  Serial.println("192.168.4.1");
   delay(2000);
-  Udp.beginPacket("192.168.1.3", 55420);
-  Udp.write("Start");
+  Udp.beginPacket("192.168.4.1", 4211);
+  Udp.write("Startup");
   Udp.endPacket();
-
+  Serial.print("sent");
 }
 
 
 
 void loop()
 {
+    // put your main code here, to run repeatedly:
+  while (Serial.available() > 0) {
+  Datain = Serial.readString();
+  strcpy(Dataout, Datain.c_str());
+  Serial.println(Dataout);
+  Udp.beginPacket("192.168.4.1", 4211);
+  Udp.write(Dataout);
+  Udp.endPacket();
+}
+  
   int packetSize = Udp.parsePacket();
   if (packetSize)
   {
@@ -49,7 +63,7 @@ void loop()
     Serial.println(incomingPacket);
     
     // send back a reply, to the IP address and port we got the packet from
-    Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
+    Udp.beginPacket("192.168.4.1", 4211);
     Udp.write(incomingPacket);
     Udp.endPacket();
   }

@@ -23,7 +23,10 @@ You can easily change these pins in the setup function
 /* Variables for the Stabilization System
 Customize them to your likings
 */
-
+String data1,data2,data3,data4;
+int DataPosition1 = 0;
+int DataPosition2 = 0; 
+int DataPosition3 = 0;
 String Datain = "";
 const int MPU = 0x68; // I2C address of the MPU-6050
 const int Mag = 0x1E; //I2C address of the HMC5833L
@@ -80,7 +83,7 @@ Output FiltYawPitchRoll: Output Filtered Yaw Pitch and Roll Data
 //#define OutputFiltQuat
 //#define OutputFiltYawPitchRoll
 //#define OutputAltitude
-#define OutputCalibration
+//#define OutputCalibration
 
 //Enable Datalogging
 //#define Datalog
@@ -94,7 +97,8 @@ float RollOffset = -5.2f;
 
 void setup(){
   Wire.begin();
-  Serial.begin(9600);
+  Serial.begin(115200);
+  Serial1.begin(115200);
   while (!Serial) {
     ; // wait for serial port to connect. Needed for native USB port only
   }
@@ -102,7 +106,7 @@ void setup(){
   Serial.print("Initializing Sensors");
   initBMP180();
   setupSensors();
-
+  pinMode(12, OUTPUT);
   Serial.print("Initializing SD card...");
   Servo1.attach(5);
   Servo2.attach(9);
@@ -124,13 +128,85 @@ void setup(){
 void loop()
 {
 
-while (Serial.available() > 0) {
-  Datain = Serial.readString();
-  Serial.println(Datain);
-  if (Datain == "GNCON"){
-    GNCOnline = true;
+while (Serial1.available() > 0) {
+Datain = Serial1.readStringUntil('\n');
+Serial.println(Datain);
+char DataArray[Datain.length()];
+Datain.toCharArray(DataArray, 50);
+for (int i = 0; i < Datain.length(); i++){
+  if (DataArray[i] == ','){
+    if (DataPosition1 == 0){
+      DataPosition1 = i;
+    }
+    else if (DataPosition1 != 0 && DataPosition2 == 0){
+      DataPosition2 = i;
+    }
+    else if (DataPosition1 != 0 && DataPosition2 != 0 && DataPosition3 == 0){
+      DataPosition3 = i;
+    }
   }
 }
+data1 = Datain.substring(0,DataPosition1);
+data2 = Datain.substring(DataPosition1 + 1, DataPosition2);
+data3 = Datain.substring(DataPosition2 + 1, DataPosition3);
+data4 = Datain.substring(DataPosition3 + 1, Datain.length());
+DataPosition1 = 0;
+DataPosition2 = 0;
+DataPosition3 = 0;
+
+
+  if (data1 == "GNCON"){
+    Serial.println("GNC is ON");
+    digitalWrite(12, HIGH);
+  }
+    if (data1 == "GNCOFF"){
+    Serial1.println("GNC is OFF");
+  }
+    if (data1 == "SERVOPOS"){
+    Serial1.println("Servo Position is set at:" + data2 + "," + data3 + "," + data4);
+  }
+    if (data1 == "SERVOFFSET"){
+    Serial1.println("Servo Offset is set at:" + data2 + "," + data3 + "," + data4);
+  }
+    if (data1 == "CAL"){
+    Serial1.println("Calibrating");
+  }
+    if (data1 == "YPROFFSET"){
+    Serial1.println("YPR Offset is set at:" + data2 + "," + data3 + "," + data4);
+  }
+    if (data1 == "GNCANGLE"){
+    Serial1.println("GNC Angle is set at:" + data2 + "," + data3 + "," + data4);
+  }
+    if (data1 == "YPROUT"){
+    Serial1.println("Yaw Pitch and Roll are:");// + yaw + "," + pitch + "," + roll);
+  }
+    if (data1 == "GNCOUT"){
+    Serial1.println("GNC is at:");
+  }
+    if (data1 == "SERVLOCK"){
+    Serial1.println("Servos are Locked");
+  }
+    if (data1 == "SERVUNLOCK"){
+    Serial1.println("Servos are Unlocked");
+  }
+    if (data1 == "STAT"){
+    Serial1.println("Launch Status is No Go!");
+  }
+    if (data1 == "ARM"){
+    Serial1.println("Launch Status is No Go! Cannot Arm!");
+  }
+    if (data1 == "GOGO"){
+    Serial1.println("Launch is disabled!");
+  }
+    if (data1 == "NOGO"){
+    Serial1.println("Abort!");
+  }
+  data1 = "";
+  data2 = "";
+  data3 = "";
+  data4 = "";
+}
+
 currentMillis = millis();
 //Get Sensor Updates
   readGyroAccel();
