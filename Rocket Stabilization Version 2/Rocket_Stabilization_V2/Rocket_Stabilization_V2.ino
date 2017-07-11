@@ -20,7 +20,7 @@ You can easily change these pins in the setup function
 #include <SPI.h>
 #include <Servo.h>
 #include<Wire.h>
-#include <Adafruit_BMP085.h>
+//#include <Adafruit_BMP085.h>
 
 /* Variables for the Stabilization System
 Customize them to your likings
@@ -58,7 +58,7 @@ int Servo1pos = 0; //servo 1
 int Servo2pos = 0;  //servo 2
 int Servo3pos = 0; //servo 3
 int Servo4pos = 0; //servo 4
-Adafruit_BMP085 bmp;//Defines the BMP180
+//Adafruit_BMP085 bmp;//Defines the BMP180
 int alt;//Current Altitude
 int altoffset = 221;//offset for the altimetry from sea level to your current location
 bool ServLock = false;
@@ -90,7 +90,7 @@ Output FiltYawPitchRoll: Output Filtered Yaw Pitch and Roll Data
 //#define OutputRawGyro
 //#define OutputRawMag
 //#define OutputFiltQuat
-//#define OutputFiltYawPitchRoll
+#define OutputFiltYawPitchRoll
 //#define OutputAltitude
 //#define OutputCalibration
 
@@ -115,7 +115,7 @@ void setup(){
   }
 
   Serial.print("Initializing Sensors");
-  initBMP180();
+//  initBMP180();
   setupSensors();
   pinMode(12, OUTPUT);
   Serial.print("Initializing SD card...");
@@ -285,7 +285,7 @@ currentMillis = millis();
 //Get Sensor Updates
   readGyroAccel();
   readMag();
-  getAlt();
+//  getAlt();
 //DeltaTime Data for the filtering
   Now = micros();
   deltat = ((Now - lastUpdate) / 1000000.0f); // set integration time by time elapsed since last filter update
@@ -449,7 +449,7 @@ void setupSensors()
 }
 
 
-void initBMP180() //Gets Altitude Ready to go!
+/*void initBMP180() //Gets Altitude Ready to go!
 {
   Serial.print("Initializing BMP180");
   if (!bmp.begin())
@@ -459,7 +459,7 @@ void initBMP180() //Gets Altitude Ready to go!
   }
   Serial.println("BMP180 initialization done.");
 }
-
+*/
 void readGyroAccel()
 {
   //Start Recieving Data
@@ -514,11 +514,11 @@ void readMag()
   fMgZ *= .01;
 }
 
-void getAlt()
+/*void getAlt()
 {
   alt = bmp.readAltitude() - altoffset;
 }
-
+*/
 void ComputePitch()
 {
   pitchOutput = map(pitch, -30, 30, 70, 110);
